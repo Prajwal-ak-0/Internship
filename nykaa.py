@@ -7,22 +7,79 @@ import pandas as pd
 import os
 driver = webdriver.Chrome()
 
-URL = "https://www.clinique.com/makeup-clinique?&utm_id=go_cmp-20493563026_adg-158450696131_ad-671210073586_kwd-10615601_dev-c_ext-_prd-_mca-_sig-Cj0KCQiAwvKtBhDrARIsAJj-kTgPvHe-JrfC9_jw_O76QoCShPC9QD_a0lHt_CJVu-2dEVoE9efnmQsaAmffEALw_wcB&utm_source=google&gad_source=1&gclid=Cj0KCQiAwvKtBhDrARIsAJj-kTgPvHe-JrfC9_jw_O76QoCShPC9QD_a0lHt_CJVu-2dEVoE9efnmQsaAmffEALw_wcB&gclsrc=aw.ds"
+URL = "https://www.lookfantastic.com/health-beauty/hair/view-all-haircare.list"
 driver.get(URL)
 
-# product_link = driver.find_element(By.XPATH,'(//div[contains(@id,"phx-F7AbJCdbZDyFd5IC-5-0")])/div/div/a').get_attribute('href')
-# time.sleep(3)
-# driver.get(product_link)
-#
-# time.sleep(3)
+page_count = 2
+current_page = 1
 
-time.sleep(3)
-product_link = WebDriverWait(driver, 10).until(
-    EC.element_to_be_clickable((By.XPATH, '(//div[contains(@id,"phx-F7AbJCdbZDyFd5IC-5-0")])/div/div/a'))
-)
-product_link = product_link.get_attribute('href')
-time.sleep(3)
+wait = WebDriverWait(driver, 10)
 
-driver.get(product_link)
+def scroll_to_bottom():
+    scroll_height = driver.execute_script("return document.body.scrollHeight")
+    scroll_duration = 20
+    scroll_steps = 100  # You can adjust this value based on your preference
+    scroll_distance = scroll_height / scroll_steps
+
+    for _ in range(scroll_steps):
+        driver.execute_script(f"window.scrollBy(0, {scroll_distance});")
+        time.sleep(scroll_duration / scroll_steps)
+
+def close_popup():
+    accept_button = WebDriverWait(driver, 10).until(
+        EC.element_to_be_clickable((By.ID, "onetrust-accept-btn-handler"))
+    )
+    accept_button.click()
+
+    close_button = WebDriverWait(driver, 10).until(
+        EC.element_to_be_clickable((By.ID, "epopup-close-button"))
+    )
+    close_button.click()
+
+def get_product_info():
+    wait = WebDriverWait(driver, 10)
+
+    try:
+        products = wait.until(
+            EC.presence_of_all_elements_located((By.XPATH, '//li[contains(@class,"productListProducts_product")]')))
+
+        if len(products) == 45:
+            link = []
+
+            for product in products:
+
+                link_element = WebDriverWait(product, 10).until(
+                    EC.visibility_of_element_located((By.XPATH, './/a[contains(@class,"productBlock_link")]')))
+
+
+                link.append(link_element.get_attribute("href"))
+
+            new_data = pd.DataFrame({"link": link})
+
+            if os.path.isfile("lookfantastic.csv"):
+                existing_data = pd.read_csv("lookfantastic.csv")
+                df = pd.concat([existing_data, new_data])
+            else:
+                df = new_data
+
+            df.to_csv("lookfantastic.csv", index=False)
+        else:
+            print(f"Expected 45 products, but found {len(products)} products.")
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+
+close_popup()
+
+while current_page < page_count:
+    scroll_to_bottom()
+    get_product_info()
+    time.sleep(10)
+    container = wait.until(EC.presence_of_element_located((By.XPATH, '//div[contains(@class,"responsiveProductListPage_bottomPagination")]')))
+    next_button = wait.until(EC.element_to_be_clickable((By.XPATH, '//button[contains(@class,"paginationNavigationButtonNext")]')))
+    driver.execute_script("arguments[0].click();", next_button)
+    current_page += 1
+    time.sleep(10)
 
 driver.quit()
